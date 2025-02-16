@@ -1,7 +1,74 @@
-import {zbencode, zbdecode} from "../public/encoding.mjs";
-import {DataClient, NetworkedDataClient} from "../public/data-client.mjs";
+// This is the Edge Chat Demo Worker, built using Durable Objects!
+
+// ===============================
+// Introduction to Modules
+// ===============================
+//
+// The first thing you might notice, if you are familiar with the Workers platform, is that this
+// Worker is written differently from others you may have seen. It even has a different file
+// extension. The `mjs` extension means this JavaScript is an ES Module, which, among other things,
+// means it has imports and exports. Unlike other Workers, this code doesn't use
+// `addEventListener("fetch", handler)` to register its main HTTP handler; instead, it _exports_
+// a handler, as we'll see below.
+//
+// This is a new way of writing Workers that we expect to introduce more broadly in the future. We
+// like this syntax because it is *composable*: You can take two workers written this way and
+// merge them into one worker, by importing the two Workers' exported handlers yourself, and then
+// exporting a new handler that call into the other Workers as appropriate.
+//
+// This new syntax is required when using Durable Objects, because your Durable Objects are
+// implemented by classes, and those classes need to be exported. The new syntax can be used for
+// writing regular Workers (without Durable Objects) too, but for now, you must be in the Durable
+// Objects beta to be able to use the new syntax, while we work out the quirks.
+//
+// To see an example configuration for uploading module-based Workers, check out the wrangler.toml
+// file or one of our Durable Object templates for Wrangler:
+//   * https://github.com/cloudflare/durable-objects-template
+//   * https://github.com/cloudflare/durable-objects-rollup-esm
+//   * https://github.com/cloudflare/durable-objects-webpack-commonjs
+
+// ===============================
+// Required Environment
+// ===============================
+//
+// This worker, when deployed, must be configured with two environment bindings:
+// * rooms: A Durable Object namespace binding mapped to the ChatRoom class.
+// * limiters: A Durable Object namespace binding mapped to the RateLimiter class.
+//
+// Incidentally, in pre-modules Workers syntax, "bindings" (like KV bindings, secrets, etc.)
+// appeared in your script as global variables, but in the new modules syntax, this is no longer
+// the case. Instead, bindings are now delivered in an "environment object" when an event handler
+// (or Durable Object class constructor) is called. Look for the variable `env` below.
+//
+// We made this change, again, for composability: The global scope is global, but if you want to
+// call into existing code that has different environment requirements, then you need to be able
+// to pass the environment as a parameter instead.
+//
+// Once again, see the wrangler.toml file to understand how the environment is configured.
+
+// =======================================================================================
+// The regular Worker part...
+//
+// This section of the code implements a normal Worker that receives HTTP requests from external
+// clients. This part is stateless.
+
+// With the introduction of modules, we're experimenting with allowing text/data blobs to be
+// uploaded and exposed as synthetic modules. In wrangler.toml we specify a rule that files ending
+// in .html should be uploaded as "Data", equivalent to content-type `application/octet-stream`.
+// So when we import it as `HTML` here, we get the HTML content as an `ArrayBuffer`. This lets us
+// serve our app's static asset without relying on any separate storage. (However, the space
+// available for assets served this way is very limited; larger sites should continue to use Workers
+// KV to serve assets.)
+import HTML from "./chat.html";
+import { getAssetFromKV, mapRequestToAsset } from '@cloudflare/kv-asset-handler'
+import manifestJSON from '__STATIC_CONTENT_MANIFEST'
+const assetManifest = JSON.parse(manifestJSON);
+import {DataClient, NetworkedDataClient/*, DCMap, DCArray*/} from "../public/data-client.mjs";
 import {NetworkedIrcClient} from "../public/irc-client.mjs";
+import {NetworkedCrdtClient} from "../public/crdt-client.mjs";
+import {NetworkedLockClient} from "../public/lock-client.mjs";
 import {handlesMethod as networkedAudioClientHandlesMethod} from "../public/audio/networked-audio-client-utils.mjs";
+import {handlesMethod as networkedVideoClientHandlesMethod} from "../public/video/networked-video-client-utils.mjs";
 import {parseUpdateObject, serializeMessage} from "../public/util.mjs";
 import {UPDATE_METHODS} from "../public/update-types.mjs";
 
@@ -43,14 +110,62 @@ export default {
       let url = new URL(request.url);
       let path = url.pathname.slice(1).split('/');
 
+      if (!path[0]) {
+        // Serve our HTML at the root path.
+        return new Response(HTML, {headers: {"Content-Type": "text/html;charset=UTF-8"}});
+      }
+
       switch (path[0]) {
         case "api":
           // This is a request for `/api/...`, call the API handler.
           return handleApiRequest(path.slice(1), request, env);
+        case 'public':
+          return handlePublicRequest(path.slice(1), request, env, ctx);
         default:
           return new Response("Not found", {status: 404});
       }
     });
+  }
+}
+
+async function handlePublicRequest(path, request, env, ctx) {
+  try {
+    const event = {
+      request,
+      waitUntil(promise) {
+        return ctx.waitUntil(promise)
+      },
+    }
+    const options = {};
+    function handlePrefix(prefix) {
+      return request => {
+        // compute the default (e.g. / -> index.html)
+        let defaultAssetKey = mapRequestToAsset(request)
+        let url = new URL(defaultAssetKey.url)
+
+        // strip the prefix from the path for lookup
+        url.pathname = url.pathname.replace(prefix, '/')
+
+        // inherit all other props from the default request
+        return new Request(url.toString(), defaultAssetKey)
+      }
+    }
+    options.mapRequestToAsset = handlePrefix(/^\/public/);
+    options.ASSET_NAMESPACE = env.__STATIC_CONTENT;
+    options.ASSET_MANIFEST = assetManifest;
+    const page = await getAssetFromKV(event, options)
+
+    // allow headers to be altered
+    const response = new Response(page.body, page);
+
+    // console.log('got response', response);
+
+    return response;
+  } catch(err) {
+    console.log('error', err);
+    return new Response(err.stack, {
+      status: 500,
+    })
   }
 }
 
@@ -156,6 +271,8 @@ const readCrdtFromStorage = async (storage, arrayNames) => {
   return crdt;
 };
 const dataClientPromises = new Map();
+const crdtClientPromises = new Map();
+const lockClientPromises = new Map();
 
 //
 
@@ -286,12 +403,39 @@ export class ChatRoom {
       })();
       dataClientPromises.set(roomName, dataClientPromise);
     }
+    let crdtClientPromise = crdtClientPromises.get(roomName);
+    if (!crdtClientPromise) {
+      crdtClientPromise = (async () => {
+        let initialUpdate = await this.storage.get('crdt');
+        console.log('get room crdt', initialUpdate);
+        const crdtClient = new NetworkedCrdtClient({
+          initialUpdate,
+        });
+        crdtClient.addEventListener('update', async e => {
+          const uint8array = crdtClient.getStateAsUpdate();
+          // console.log('put room crdt', uint8array);
+          await this.storage.put('crdt', uint8array);
+        });
+        return crdtClient;
+      })();
+      crdtClientPromises.set(roomName, crdtClientPromise);
+    }
+    let lockClientPromise = lockClientPromises.get(roomName);
+    if (!lockClientPromise) {
+      lockClientPromise = (async () => {
+        const lockClient = new NetworkedLockClient();
+        return lockClient;
+      })();
+      lockClientPromises.set(roomName, lockClientPromise);
+    }
 
     const _resumeWebsocket = _pauseWebSocket(webSocket);
 
     const dataClient = await dataClientPromise;
+    const crdtClient = await crdtClientPromise;
+    const lockClient = await lockClientPromise;
     const networkClient = {
-      serializeMessage(message) {
+      /* serializeMessage(message) {
         if (message.type === 'networkinit') {
           const {playerIds} = message.data;
           return zbencode({
@@ -303,7 +447,7 @@ export class ChatRoom {
         } else {
           throw new Error('invalid message type: ' + message.type);
         }
-      },
+      }, */
       getNetworkInitMessage: () => {
         return new MessageEvent('networkinit', {
           data: {
@@ -315,11 +459,13 @@ export class ChatRoom {
       },
     };
 
-  let session = {webSocket, playerId/*, blockedMessages: []*/};
+    let session = {webSocket, playerId/*, blockedMessages: []*/};
     this.sessions.push(session);
 
     // send import
-    webSocket.send(dataClient.serializeMessage(dataClient.getImportMessage()));
+    webSocket.send(serializeMessage(dataClient.getImportMessage()));
+    // send initial update
+    webSocket.send(serializeMessage(crdtClient.getInitialUpdateMessage()));
     // send network init
     webSocket.send(serializeMessage(networkClient.getNetworkInitMessage()));
 
@@ -348,7 +494,7 @@ export class ChatRoom {
               listen: false,
             });
             const removeMapUpdate = map.removeUpdate();
-            const removeMapUpdateBuffer = dataClient.serializeMessage(removeMapUpdate);
+            const removeMapUpdateBuffer = serializeMessage(removeMapUpdate);
             proxyMessageToPeers(removeMapUpdateBuffer);
 
             /* const array = dataClient.getArray(arrayId, {
@@ -359,7 +505,7 @@ export class ChatRoom {
                 listen: false,
               });
               const removeMessage = map.removeUpdate();
-              const removeArrayUpdateBuffer = dataClient.serializeMessage(removeMessage);
+              const removeArrayUpdateBuffer = serializeMessage(removeMessage);
               proxyMessageToPeers(removeArrayUpdateBuffer);
             } */
           }
@@ -371,12 +517,15 @@ export class ChatRoom {
               listen: false,
             });
             const removeMessage = map.removeUpdate();
-            const removeArrayUpdateBuffer = dataClient.serializeMessage(removeMessage);
+            const removeArrayUpdateBuffer = serializeMessage(removeMessage);
             proxyMessageToPeers(removeArrayUpdateBuffer);
           }
         }
         // console.log('iter end');
       }
+    };
+    const _triggerUnlocks = () => {
+      lockClient.serverUnlockSession(session);
     };
 
     dataClient.addEventListener('deadhand', e => {
@@ -477,11 +626,55 @@ export class ChatRoom {
           proxyMessageToPeers(uint8Array);
         }
       }
+      if (NetworkedCrdtClient.handlesMethod(method)) {
+        const [update] = args;
+        crdtClient.update(update);
+        proxyMessageToPeers(uint8Array);
+      }
+      if (NetworkedLockClient.handlesMethod(method)) {
+        const m = (() => {
+          const [lockName] = args;
+          switch (method) {
+            case UPDATE_METHODS.LOCK_REQUEST: {
+              return new MessageEvent('lockRequest', {
+                data: {
+                  playerId,
+                  lockName,
+                },
+              });
+            }
+            case UPDATE_METHODS.LOCK_RESPONSE: {
+              return new MessageEvent('lockResponse', {
+                data: {
+                  playerId,
+                  lockName,
+                },
+              });
+            }
+            case UPDATE_METHODS.LOCK_RELEASE: {
+              return new MessageEvent('lockRelease', {
+                data: {
+                  playerId,
+                  lockName,
+                },
+              });
+            }
+            default: {
+              console.warn('unrecognized lock method', method);
+              break
+            }
+          }
+        })();
+        lockClient.handle(m);
+      }
       if (NetworkedIrcClient.handlesMethod(method)) {
         // console.log('route', method, args, this.sessions);
         reflectMessageToPeers(uint8Array);
       }
-      if (networkedAudioClientHandlesMethod(method)) {
+      if (
+        networkedAudioClientHandlesMethod(method) ||
+        networkedVideoClientHandlesMethod(method)
+      ) {
         proxyMessageToPeers(uint8Array);
       }
     };
@@ -612,6 +805,7 @@ export class ChatRoom {
         this.sessions = this.sessions.filter(member => member !== session);
 
         _triggerDeadHands();
+        _triggerUnlocks();
 
         // console.log('send leave', new Error().stack);
         // _sendLeaveMessage();
