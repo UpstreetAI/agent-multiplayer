@@ -1,19 +1,19 @@
 {
-  "name": "@webaverse-studios/multiplayer",
-  "version": "0.6.0",
+  "name": "@usdk/multiplayer",
+  "version": "0.0.1",
   "description": "",
   "main": "index.mjs",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/webaverse-studios/webaverse.git"
+    "url": "git+https://github.com/usdk/multiplayer.git"
   },
   "author": "Webaverse",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/webaverse-studios/webaverse/issues"
+    "url": "https://github.com/usdk/multiplayer/issues"
   },
-  "homepage": "https://github.com/webaverse-studios/webaverse",
+  "homepage": "https://github.com/usdk/multiplayer",
   "scripts": {
     "dev": "wrangler dev --port 2222",
     "deploy": "wrangler deploy"
