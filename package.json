@@ -1,5 +1,5 @@
 {
-  "name": "@usdk/multiplayer",
+  "name": "agent-multiplayer",
   "version": "0.0.1",
   "description": "",
   "main": "index.mjs",
