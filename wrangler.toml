@@ -3,10 +3,7 @@ workers_dev = true
 compatibility_date = "2023-06-01"
 # Add your account ID here
 
-main = "src/chat.mjs"
-
-[site]
-bucket = "./public"
+main = "src/multiplayer.mjs"
 
 [durable_objects]
 bindings = [
