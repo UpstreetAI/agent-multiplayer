@@ -1,34 +1,83 @@
 import {UPDATE_METHODS} from '../update-types.mjs';
 import {parseUpdateObject, makeId} from '../util.mjs';
-import {zbencode} from '../../../zjs/encoding.mjs';
+import {zbencode} from 'zjs';
 import {handlesMethod} from './networked-audio-client-utils.mjs';
 
 export class NetworkedAudioClient extends EventTarget {
   constructor({
     playerId = makeId(),
-    audioManager,
   }) {
     super();
 
     this.playerId = playerId;
-    this.audioManager = audioManager;
 
     this.ws = null;
 
     this.audioSourceCleanups = new Map(); // playerId:streamId -> function
-    this.outputAudioStreams = new Map(); // playerId:streamId -> stream
   }
 
-  addAudioSource(audioSource) {
+  addAudioSource(playableAudioStream) {
     // console.log('add audio source', new Error().stack);
 
-    // add the cleanup fn
     const {
       id,
-      output,
-    } = audioSource;
+      // output,
+      type,
+      disposition,
+    } = playableAudioStream;
+    if (typeof id !== 'string') {
+      throw new Error('audio source id must be a string');
+    }
+    if (typeof type !== 'string') {
+      throw new Error('audio source type must be a string');
+    }
+    if (typeof disposition !== 'string') {
+      throw new Error('audio source disposition must be a string');
+    }
+
+    // console.log('send start', [
+    //   this.playerId,
+    //   id,
+    //   type,
+    //   disposition,
+    // ]);
+    this.ws.send(zbencode({
+      method: UPDATE_METHODS.AUDIO_START,
+      args: [
+        this.playerId,
+        id,
+        type,
+        disposition,
+      ],
+    }));
+
+    // pump the reader
+    let live = true;
+    const finishPromise = (async () => {
+      for await (const chunk of playableAudioStream) {
+        if (live) {
+          // console.log('send audio', [
+          //   this.playerId,
+          //   id,
+          //   chunk,
+          // ]);
+          this.ws.send(zbencode({
+            method: UPDATE_METHODS.AUDIO,
+            args: [
+              this.playerId,
+              id,
+              chunk,
+            ],
+          }));
+        } else {
+          break;
+        }
+      }
+    })();
+
+    // add the cleanup fn
     const cleanup = () => {
-      output.removeEventListener('data', data);
+      live = false;
 
       // console.log('send audio end', [
       //   this.playerId,
@@ -44,34 +93,22 @@ export class NetworkedAudioClient extends EventTarget {
     };
     this.audioSourceCleanups.set(id, cleanup);
 
-    const data = e => {
-      // console.log('send data', [
-      //   this.playerId,
-      //   id,
-      //   e.data,
-      // ]);
-      this.ws.send(zbencode({
-        method: UPDATE_METHODS.AUDIO,
-        args: [
-          this.playerId,
-          id,
-          e.data,
-        ],
-      }));
+    return {
+      waitForFinish: () => finishPromise,
     };
-    output.addEventListener('data', data);
   }
 
-  removeAudioSource(microphoneSource) {
-    console.log('remove audio source');
-    this.audioSourceCleanups.get(microphoneSource.id)();
-    this.audioSourceCleanups.delete(microphoneSource.id);
+  removeAudioSource(readableAudioStream) {
+    // console.log('remove audio source');
+    const cleanupFn = this.audioSourceCleanups.get(readableAudioStream.id);
+    cleanupFn();
+    this.audioSourceCleanups.delete(readableAudioStream.id);
   }
 
   async connect(ws) {
     this.ws = ws;
 
-    await new Promise((resolve, reject) => {
+    const _waitForOpen = () => new Promise((resolve, reject) => {
       resolve = (resolve => () => {
         resolve();
         _cleanup();
@@ -89,6 +126,7 @@ export class NetworkedAudioClient extends EventTarget {
         this.ws.removeEventListener('error', reject);
       };
     });
+    await _waitForOpen();
 
     // console.log('irc listen');
     this.ws.addEventListener('message', e => {
@@ -126,6 +164,22 @@ export class NetworkedAudioClient extends EventTarget {
           data,
         },
       }));
+    } else if (method === UPDATE_METHODS.AUDIO_START) {
+      const [
+        playerId,
+        streamId,
+        type,
+        disposition,
+      ] = args;
+
+      this.dispatchEvent(new MessageEvent('audiostart', {
+        data: {
+          playerId,
+          streamId,
+          type,
+          disposition,
+        },
+      }));
     } else if (method === UPDATE_METHODS.AUDIO_END) {
       const [
         playerId,
@@ -138,26 +192,9 @@ export class NetworkedAudioClient extends EventTarget {
           streamId,
         },
       }));
-    } else if (method === UPDATE_METHODS.JOIN) {
-      const [playerId] = args;
-      this.playerIds.push(playerId);
-      this.dispatchEvent(new MessageEvent('join', {
-        data: {
-          playerId,
-        },
-      }));
-    } else if (method === UPDATE_METHODS.LEAVE) {
-      const [playerId] = args;
-      const index = this.playerIds.indexOf(playerId);
-      this.playerIds.splice(index, 1);
-      this.dispatchEvent(new MessageEvent('leave', {
-        data: {
-          playerId,
-        },
-      }));
     } else {
-      console.warn('unhandled audio method', updateObject);
-      debugger;
+      console.warn('unhandled audio method: ' + method, updateObject);
+      throw new Error('unhandled audio method: ' + method);
     }
   }
 }

@@ -1,7 +1,9 @@
 import {DataClient, NetworkedDataClient, DCMap, DCArray} from './data-client.mjs';
+import {NetworkedCrdtClient} from './crdt-client.mjs';
+import {NetworkedLockClient} from './lock-client.mjs';
 import {NetworkedIrcClient} from './irc-client.mjs';
-// import {createOpusMicrophoneSource, createOpusReadableStreamSource} from './audio/audio-client.mjs';
 import {NetworkedAudioClient} from './audio/networked-audio-client.mjs';
+import {NetworkedVideoClient} from './video/networked-video-client.mjs';
 import {
   createWs,
   makePromise,
@@ -616,7 +618,7 @@ class VirtualPlayersArray extends EventTarget {
   }
 
   link(realm) {
-    const {dataClient, networkedDataClient, networkedAudioClient} = realm;
+    const {dataClient, networkedDataClient, networkedAudioClient, networkedVideoClient} = realm;
 
     const _linkData = () => {
       const playersArray = dataClient.getArray(this.arrayId);
@@ -702,35 +704,74 @@ class VirtualPlayersArray extends EventTarget {
     _linkData();
 
     const _linkAudio = () => {
-      const audiostreamstart = e => {
-        this.dispatchEvent(new MessageEvent('audiostreamstart', {
+      const audio = e => {
+        this.dispatchEvent(new MessageEvent('audio', {
           data: e.data,
         }));
       };
-      networkedAudioClient.addEventListener('audiostreamstart', audiostreamstart);
-      const audiostreamend = e => {
-        this.dispatchEvent(new MessageEvent('audiostreamend', {
+      networkedAudioClient.addEventListener('audio', audio);
+      const audiostart = e => {
+        this.dispatchEvent(new MessageEvent('audiostart', {
           data: e.data,
         }));
       };
-      networkedAudioClient.addEventListener('audiostreamend', audiostreamend);
+      networkedAudioClient.addEventListener('audiostart', audiostart);
+      const audioend = e => {
+        this.dispatchEvent(new MessageEvent('audioend', {
+          data: e.data,
+        }));
+      };
+      networkedAudioClient.addEventListener('audioend', audioend);
 
       this.cleanupFns.set(networkedAudioClient, () => {
-        networkedAudioClient.removeEventListener('audiostreamstart', audiostreamstart);
-        networkedAudioClient.removeEventListener('audiostreamend', audiostreamend);
+        networkedAudioClient.removeEventListener('audio', audio);
+        networkedAudioClient.removeEventListener('audiostart', audiostart);
+        networkedAudioClient.removeEventListener('audioend', audioend);
       });
     };
     _linkAudio();
+
+    const _linkVideo = () => {
+      const video = e => {
+        this.dispatchEvent(new MessageEvent('video', {
+          data: e.data,
+        }));
+      };
+      networkedVideoClient.addEventListener('video', video);
+      const videostart = e => {
+        this.dispatchEvent(new MessageEvent('videostart', {
+          data: e.data,
+        }));
+      };
+      networkedVideoClient.addEventListener('videostart', videostart);
+      const videoend = e => {
+        this.dispatchEvent(new MessageEvent('videoend', {
+          data: e.data,
+        }));
+      };
+      networkedVideoClient.addEventListener('videoend', videoend);
+
+      this.cleanupFns.set(networkedVideoClient, () => {
+        networkedAudioClient.removeEventListener('video', video);
+        networkedAudioClient.removeEventListener('videostart', videostart);
+        networkedAudioClient.removeEventListener('videoend', videoend);
+      });
+    };
+    _linkVideo();
   }
 
   unlink(realm) {
-    const {networkedDataClient, networkedAudioClient} = realm;
+    const {networkedDataClient, networkedAudioClient, networkedVideoClient} = realm;
 
     this.cleanupFns.get(networkedDataClient)();
     this.cleanupFns.delete(networkedDataClient);
 
     this.cleanupFns.get(networkedAudioClient)();
     this.cleanupFns.delete(networkedAudioClient);
+
+    this.cleanupFns.get(networkedVideoClient)();
+    this.cleanupFns.delete(networkedVideoClient);
+
   }
 }
 
@@ -1328,10 +1369,15 @@ export class NetworkRealm extends EventTarget {
         realm: this,
       },
     });
+    this.networkedCrdtClient = new NetworkedCrdtClient();
+    this.networkedLockClient = new NetworkedLockClient();
     this.networkedIrcClient = new NetworkedIrcClient(this.parent.playerId);
     this.networkedAudioClient = new NetworkedAudioClient({
       playerId: this.parent.playerId,
-      audioManager: this.parent.audioManager,
+      // audioManager: this.parent.audioManager,
+    });
+    this.networkedVideoClient = new NetworkedVideoClient({
+      playerId: this.parent.playerId,
     });
 
     // this.microphoneSource = null;
@@ -1362,13 +1408,22 @@ export class NetworkRealm extends EventTarget {
     };
     await Promise.all([
       this.networkedDataClient.connect(ws1).then(() => {
-        console.log('networkedDataClient connected');
+        // console.log('networkedDataClient connected');
+      }),
+      this.networkedCrdtClient.connect(ws1).then(() => {
+        // console.log('networkedCrdtClient connected');
+      }),
+      this.networkedLockClient.connect(ws1).then(() => {
+        // console.log('networkedLockClient connected');
       }),
       this.networkedIrcClient.connect(ws1).then(() => {
-        console.log('networkedIrcClient connected');
+        // console.log('networkedIrcClient connected');
       }),
       this.networkedAudioClient.connect(ws1).then(() => {
-        console.log('networkedAudioClient connected');
+        // console.log('networkedAudioClient connected');
+      }),
+      this.networkedVideoClient.connect(ws1).then(() => {
+        // console.log('networkedVideoClient connected');
       }),
     ]);
     this.connected = true;
@@ -1418,7 +1473,11 @@ export class NetworkRealm extends EventTarget {
     this.connected = false;
 
     if (this.ws.readyState === WebSocket.OPEN) {
-      this.ws.close();
+      if (this.ws.terminate) {
+        this.ws.terminate();
+      } else {
+        this.ws.close();
+      }
     }
 
     this.dispatchEvent(new MessageEvent('disconnect', {
@@ -1477,7 +1536,8 @@ export class NetworkRealms extends EventTarget {
   constructor({
     endpointUrl,
     playerId,
-    audioManager,
+    // audioManager,
+    // metadata = null,
   }) {
     super();
 
@@ -1492,7 +1552,8 @@ export class NetworkRealms extends EventTarget {
     }
     this.endpointUrl = endpointUrl;
     this.playerId = playerId;
-    this.audioManager = audioManager;
+    // this.audioManager = audioManager;
+    // this.metadata = metadata;
 
     // this.lastKey = '';
     // this.lastPosition = [NaN, NaN, NaN];
@@ -1616,6 +1677,7 @@ export class NetworkRealms extends EventTarget {
 
         // migrate networked audio client
         this.migrateAudioRealm(oldHeadRealm, newHeadRealm);
+        this.migrateVideoRealm(oldHeadRealm, newHeadRealm);
 
         await this.sync();
 
@@ -1688,6 +1750,7 @@ export class NetworkRealms extends EventTarget {
     });
 
     this.audioSources = [];
+    this.videoSources = [];
   }
 
   #updating = false;
@@ -1782,9 +1845,10 @@ export class NetworkRealms extends EventTarget {
   addAudioSource(audioSource) {
     const headRealm = this.localPlayer.headTracker.getHeadRealm();
     const {networkedAudioClient} = headRealm;
-    networkedAudioClient.addAudioSource(audioSource);
 
     this.audioSources.push(audioSource);
+
+    return networkedAudioClient.addAudioSource(audioSource);
   }
   removeAudioSource(audioSource) {
     const index = this.audioSources.indexOf(audioSource);
@@ -1798,14 +1862,41 @@ export class NetworkRealms extends EventTarget {
       console.warn('audio source not found', audioSource);
     }
   }
-
   // Internal method.
   migrateAudioRealm(oldRealm, newRealm) {
     const {networkedAudioClient: oldNetworkedAudioClient} = oldRealm;
     const {networkedAudioClient: newNetworkedAudioClient} = newRealm;
     for (const audioSource of this.audioSources) {
-      oldNetworkedAudioClient.removeMicrophoneSource(audioSource);
-      newNetworkedAudioClient.addMicrophoneSource(audioSource);
+      oldNetworkedAudioClient.removeAudioSource(audioSource);
+      newNetworkedAudioClient.addAudioSource(audioSource);
+    }
+  }
+
+  addVideoSource(videoSource) {
+    const headRealm = this.localPlayer.headTracker.getHeadRealm();
+    const {networkedVideoClient} = headRealm;
+
+    return networkedVideoClient.addVideoSource(videoSource);
+  }
+  removeVideoSource(videoSource) {
+    const index = this.videoSources.indexOf(videoSource);
+    if (index !== -1) {
+      this.videoSources.splice(index, 1);
+
+      const headRealm = this.localPlayer.headTracker.getHeadRealm();
+      const {networkedVideoClient} = headRealm;
+      networkedVideoClient.removeVideoSource(videoSource);
+    } else {
+      console.warn('video source not found', videoSource);
+    }
+  }
+  // Internal method.
+  migrateVideoRealm(oldRealm, newRealm) {
+    const {networkedVideoClient: oldNetworkedVideoClient} = oldRealm;
+    const {networkedVideoClient: newNetworkedVideoClient} = newRealm;
+    for (const videoSource of this.videoSources) {
+      oldNetworkedVideoClient.removeVideoSource(videoSource);
+      newNetworkedVideoClient.addVideoSource(videoSource);
     }
   }
 
@@ -1822,7 +1913,7 @@ export class NetworkRealms extends EventTarget {
     if (headRealm) {
       headRealm.sendChatMessage(message);
     } else {
-      throw new Error('no connected realm to send chat message to: ' + this.lastRootRealmKey + ': ' + Array.from(this.connectedRealms.values()).map(realm => realm.key).join(','));
+      throw new Error('no connected realm to send chat message to: ' + this.lastRootRealmKey + ': ' + Array.from(this.connectedRealms.values()).map(realm => realm.key).join(',') + '\n' + new Error().stack);
     }
   }
 
@@ -1916,6 +2007,8 @@ export class NetworkRealms extends EventTarget {
         }
         await Promise.all(connectPromises);
 
+        this.lastRootRealmKey = rootRealmKey;
+
         // if this is the first network configuration, initialize our local player
         if (oldNumConnectedRealms === 0 && connectPromises.length > 0) {
           // onConnect && await onConnect();
@@ -1966,8 +2059,6 @@ export class NetworkRealms extends EventTarget {
             },
           }));
         }
-
-        this.lastRootRealmKey = rootRealmKey;
 
         // emit the fact that the network was reconfigured
         this.dispatchEvent(new MessageEvent('networkreconfigure', {
