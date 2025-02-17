@@ -223,11 +223,6 @@ export class ChatRoom {
     webSocket.accept();
 
     const playerId = url.searchParams.get('playerId') ?? null;
-    /* if (!playerId) {
-      console.log('closing due to no playerId');
-      webSocket.close();
-      return;
-    } */
 
     const realm = {
       key: roomName,
@@ -279,19 +274,6 @@ export class ChatRoom {
     const crdtClient = await crdtClientPromise;
     const lockClient = await lockClientPromise;
     const networkClient = {
-      /* serializeMessage(message) {
-        if (message.type === 'networkinit') {
-          const {playerIds} = message.data;
-          return zbencode({
-            method: UPDATE_METHODS.NETWORK_INIT,
-            args: [
-              playerIds,
-            ],
-          });
-        } else {
-          throw new Error('invalid message type: ' + message.type);
-        }
-      }, */
       getNetworkInitMessage: () => {
         return new MessageEvent('networkinit', {
           data: {
@@ -317,22 +299,11 @@ export class ChatRoom {
     const deadHands = new Map();
     // let triggered = false;
     const _triggerDeadHands = () => {
-      // console.log('trigger dead hands');
-      // if (triggered) {
-      //   throw new Error('double trigger');
-      // } else {
-      //   triggered = true;
-      // }
-      // const entries = Array.from(deadHands.entries());
       for (const [key, {arrayId, arrayIndexId}] of deadHands.entries()) {
         const array = dataClient.getArray(arrayId, {
           listen: false,
         });
         if (arrayIndexId !== null) { // map mode
-          // console.log('dead hand map', arrayId, arrayIndexId);
-          // const map = dataClient.getArrayMap(arrayId, arrayIndexId, {
-          //   listen: false,
-          // });
           if (array.hasKey(arrayIndexId)) {
             const map = array.getMap(arrayIndexId, {
               listen: false,
@@ -340,18 +311,6 @@ export class ChatRoom {
             const removeMapUpdate = map.removeUpdate();
             const removeMapUpdateBuffer = serializeMessage(removeMapUpdate);
             proxyMessageToPeers(removeMapUpdateBuffer);
-
-            /* const array = dataClient.getArray(arrayId, {
-              listen: false,
-            });
-            for (const arrayIndexId of array.getKeys()) {
-              const map = array.getMap(arrayIndexId, {
-                listen: false,
-              });
-              const removeMessage = map.removeUpdate();
-              const removeArrayUpdateBuffer = serializeMessage(removeMessage);
-              proxyMessageToPeers(removeArrayUpdateBuffer);
-            } */
           }
         } else { // array mode
           // console.log('dead hand array', arrayId);
@@ -407,23 +366,6 @@ export class ChatRoom {
         // console.log('register live hand', e.data, {arrayId, arrayIndexId, liveHand});
       }
     });
-
-    // Set up our rate limiter client.
-    // let limiterId = this.env.limiters.idFromName(ip);
-    // let limiter = new RateLimiterClient(
-    //     () => this.env.limiters.get(limiterId),
-    //     err => webSocket.close(1011, err.stack));
-
-    // Create our session and add it to the sessions list.
-    // We don't send any messages to the client until it has sent us the initial user info
-    // message. Until then, we will queue messages in `session.blockedMessages`.
-
-    // Queue "join" messages for all online users, to populate the client's roster.
-    // this.sessions.forEach(otherSession => {
-    //   if (otherSession.name) {
-    //     session.blockedMessages.push(JSON.stringify({joined: otherSession.name}));
-    //   }
-    // });
 
     // respond back to the client
     const respondToSelf = message => {
@@ -537,18 +479,6 @@ export class ChatRoom {
     };
     _sendJoinMessage(playerId);
 
-    /* const _sendLeaveMessage = () => {
-      console.log('send leave message', roomName, playerId);
-      const leaveMessage = new MessageEvent('leave', {
-        data: {
-          playerId,
-        },
-      });
-      const leaveBuffer = serializeMessage(leaveMessage);
-      dataClient.emitUpdate(leaveMessage);
-      proxyMessageToPeers(leaveBuffer);
-    }; */
-
     // Set event handlers to receive messages.
     // let receivedUserInfo = false;
     webSocket.addEventListener("message", async msg => {
@@ -564,14 +494,6 @@ export class ChatRoom {
           return;
         }
 
-        // Check if the user is over their rate limit and reject the message if so.
-        /* if (!limiter.checkLimit()) {
-          webSocket.send(JSON.stringify({
-            error: "Your IP is being rate-limited, please try again later."
-          }));
-          return;
-        } */
-
         if (msg.data instanceof ArrayBuffer) {
           const arrayBuffer = msg.data;
           handleBinaryMessage(arrayBuffer);
@@ -579,60 +501,6 @@ export class ChatRoom {
           // I guess we'll use JSON.
           throw new Error('got non-binary message');
         }
-
-        /* if (!receivedUserInfo) {
-          // The first message the client sends is the user info message with their name. Save it
-          // into their session object.
-          session.name = "" + (data.name || "anonymous");
-
-          // Don't let people use ridiculously long names. (This is also enforced on the client,
-          // so if they get here they are not using the intended client.)
-          if (session.name.length > 32) {
-            webSocket.send(JSON.stringify({error: "Name too long."}));
-            webSocket.close(1009, "Name too long.");
-            return;
-          }
-
-          // Deliver all the messages we queued up since the user connected.
-          session.blockedMessages.forEach(queued => {
-            webSocket.send(queued);
-          });
-          delete session.blockedMessages;
-
-          // Broadcast to all other connections that this user has joined.
-          this.broadcast({joined: session.name});
-
-          webSocket.send(JSON.stringify({ready: true}));
-
-          // Note that we've now received the user info message.
-          receivedUserInfo = true;
-
-          return;
-        }
-
-        // Construct sanitized message for storage and broadcast.
-        data = { name: session.name, message: "" + data.message };
-
-        // Block people from sending overly long messages. This is also enforced on the client,
-        // so to trigger this the user must be bypassing the client code.
-        if (data.message.length > 256) {
-          webSocket.send(JSON.stringify({error: "Message too long."}));
-          return;
-        }
-
-        // Add timestamp. Here's where this.lastTimestamp comes in -- if we receive a bunch of
-        // messages at the same time (or if the clock somehow goes backwards????), we'll assign
-        // them sequential timestamps, so at least the ordering is maintained.
-        data.timestamp = Math.max(Date.now(), this.lastTimestamp + 1);
-        this.lastTimestamp = data.timestamp;
-
-        // Broadcast the message to all other WebSockets.
-        let dataStr = JSON.stringify(data);
-        this.broadcast(dataStr);
-
-        // Save message.
-        let key = new Date(data.timestamp).toISOString();
-        await this.storage.put(key, dataStr); (*/
       } catch (err) {
         // Report any exceptions directly back to the client. As with our handleErrors() this
         // probably isn't what you'd want to do in production, but it's convenient when testing.
@@ -650,13 +518,6 @@ export class ChatRoom {
 
         _triggerDeadHands();
         _triggerUnlocks();
-
-        // console.log('send leave', new Error().stack);
-        // _sendLeaveMessage();
-
-        /* if (session.name) {
-          this.broadcast({quit: session.name});
-        } */
       } catch(err) {
         console.warn(err.stack);
         throw err;
