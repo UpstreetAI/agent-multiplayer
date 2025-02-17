@@ -15,3 +15,8 @@ export const METHODS = {
   VIDEO_START: 11,
   VIDEO_END: 12,
 };
+
+export const METHOD_NAMES = {};
+for (const [key, value] of Object.entries(METHODS)) {
+  METHOD_NAMES[value] = key;
+}
