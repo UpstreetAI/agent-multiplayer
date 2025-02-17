@@ -2,7 +2,7 @@
   "name": "agent-multiplayer",
   "version": "0.0.1",
   "description": "",
-  "main": "index.mjs",
+  "main": "./src/client.ts",
   "type": "module",
   "repository": {
     "type": "git",
@@ -19,8 +19,11 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "u8-encoder": "file:./packages/u8-encoder",
     "@cloudflare/kv-asset-handler": "^0.3.4",
+    "u8-encoder": "file:./packages/u8-encoder",
     "yjs": "^13.6.18"
+  },
+  "devDependencies": {
+    "wrangler": "^3.109.1"
   }
 }
