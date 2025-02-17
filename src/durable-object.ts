@@ -65,6 +65,13 @@ export class Room {
   async handleSession(webSocket, ip, roomName, url) {
     webSocket.accept();
 
+    // steps to initialize the session:
+    // 1. generate playerId and send it to the client
+    // 2. wait for client to set playerData
+    // 3. latch the new session and begin listening for messages
+    // 4. send network init message to the client
+    // 5. send join message to peers except us
+
     const playerId = url.searchParams.get('playerId') ?? null;
 
     // const _resumeWebsocket = _pauseWebSocket(webSocket);
