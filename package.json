@@ -6,14 +6,14 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usdk/multiplayer.git"
+    "url": "git+https://github.com/usdk/agent-multiplayer.git"
   },
   "author": "Upstreet",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/usdk/multiplayer/issues"
+    "url": "https://github.com/usdk/agent-multiplayer/issues"
   },
-  "homepage": "https://github.com/usdk/multiplayer",
+  "homepage": "https://github.com/usdk/agent-multiplayer",
   "scripts": {
     "dev": "wrangler dev --port 2222",
     "deploy": "wrangler deploy"
