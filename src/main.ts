@@ -1,20 +1,5 @@
 export {Room} from "./durable-object";
-
-async function handleErrors(request, func) {
-  try {
-    return await func();
-  } catch (err) {
-    if (request.headers.get("Upgrade") == "websocket") {
-      let pair = new WebSocketPair();
-      pair[1].accept();
-      pair[1].send(JSON.stringify({error: err.stack}));
-      pair[1].close(1011, "Uncaught exception during session setup");
-      return new Response(null, { status: 101, webSocket: pair[0] });
-    } else {
-      return new Response(err.stack, {status: 500});
-    }
-  }
-}
+import {handleErrors} from "./lib/errors.mjs";
 
 async function handleApiRequest(paths, request, env) {
   switch (paths[0]) {
@@ -41,8 +26,6 @@ async function handleApiRequest(paths, request, env) {
 export default {
   async fetch(request, env, ctx) {
     return await handleErrors(request, async () => {
-      // We have received an HTTP request! Parse the URL and route the request.
-
       let url = new URL(request.url);
       const paths = url.pathname.slice(1).split('/');
       switch (paths[0]) {
