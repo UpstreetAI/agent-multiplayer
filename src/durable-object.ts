@@ -148,13 +148,8 @@ const _pauseWebSocket = (ws) => {
   };
 };
 
-// =======================================================================================
-// The ChatRoom Durable Object Class
-
-// ChatRoom implements a Durable Object that coordinates an individual chat room. Participants
-// connect to the room using WebSockets, and the room broadcasts messages from each participant
-// to all others.
-export class ChatRoom {
+// Durable Object Class
+export class Room {
   constructor(controller, env) {
     // `controller.storage` provides access to our durable storage. It provides a simple KV
     // get()/put() interface.
