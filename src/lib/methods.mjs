@@ -1,0 +1,14 @@
+export const METHODS = {
+  INIT_PLAYER_ID: 1,
+  SET_PLAYER_DATA: 2,
+  INIT_PLAYERS: 3,
+  JOIN: 4,
+  LEAVE: 5,
+  CHAT: 6,
+  AUDIO: 7,
+  AUDIO_START: 8,
+  AUDIO_END: 9,
+  VIDEO: 10,
+  VIDEO_START: 11,
+  VIDEO_END: 12,
+};
