@@ -2,7 +2,6 @@ import {NetworkedIrcClient} from "./lib/irc-client.mjs";
 import {handlesMethod as networkedAudioClientHandlesMethod} from "./lib/audio/networked-audio-client-utils.mjs";
 import {handlesMethod as networkedVideoClientHandlesMethod} from "./lib/video/networked-video-client-utils.mjs";
 import {parseUpdateObject, serializeMessage} from "./lib/util.mjs";
-import {METHODS} from "./lib/methods.mjs";
 import {handleErrors} from "./lib/errors.mjs";
 
 // returns the resume function
