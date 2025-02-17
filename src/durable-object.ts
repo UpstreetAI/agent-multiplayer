@@ -157,6 +157,15 @@ export class Room {
       // handle playerData updates
       if (o.method === METHODS.SET_PLAYER_DATA) {
         session.playerData = o.args.playerData;
+
+        const uint8Array = serializeMessage({
+          method: METHODS.SET_PLAYER_DATA,
+          args: {
+            playerId: session.playerId,
+            playerData: session.playerData,
+          },
+        });
+        proxyMessageToPeersIncludingUs(uint8Array);
       }
 
       // handle proxying messages to peers
