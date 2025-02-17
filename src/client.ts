@@ -1,5 +1,8 @@
-import { METHOD_NAMES } from "./lib/methods.mjs";
+import { METHODS, METHOD_NAMES } from "./lib/methods.mjs";
 import { parseMessage, serializeMessage, type MethodArgs } from "./lib/util.ts";
+export {
+  METHODS,
+};
 
 type MultiplayerApi = EventTarget & {
   send: (methodArgs: MethodArgs) => void;
