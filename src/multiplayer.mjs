@@ -1,11 +1,11 @@
-import {DataClient, NetworkedDataClient} from "../public/data-client.mjs";
-import {NetworkedIrcClient} from "../public/irc-client.mjs";
-import {NetworkedCrdtClient} from "../public/crdt-client.mjs";
-import {NetworkedLockClient} from "../public/lock-client.mjs";
-import {handlesMethod as networkedAudioClientHandlesMethod} from "../public/audio/networked-audio-client-utils.mjs";
-import {handlesMethod as networkedVideoClientHandlesMethod} from "../public/video/networked-video-client-utils.mjs";
-import {parseUpdateObject, serializeMessage} from "../public/util.mjs";
-import {UPDATE_METHODS} from "../public/update-types.mjs";
+import {DataClient, NetworkedDataClient} from "./lib/data-client.mjs";
+import {NetworkedIrcClient} from "./lib/irc-client.mjs";
+import {NetworkedCrdtClient} from "./lib/crdt-client.mjs";
+import {NetworkedLockClient} from "./lib/lock-client.mjs";
+import {handlesMethod as networkedAudioClientHandlesMethod} from "./lib/audio/networked-audio-client-utils.mjs";
+import {handlesMethod as networkedVideoClientHandlesMethod} from "./lib/video/networked-video-client-utils.mjs";
+import {parseUpdateObject, serializeMessage} from "./lib/util.mjs";
+import {UPDATE_METHODS} from "./lib/update-types.mjs";
 
 // `handleErrors()` is a little utility function that can wrap an HTTP request handler in a
 // try/catch and return errors to the client. You probably wouldn't want to use this in production
