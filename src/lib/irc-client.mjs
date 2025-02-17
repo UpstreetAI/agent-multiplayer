@@ -5,6 +5,7 @@ export class NetworkedIrcClient extends EventTarget {
     return [
       METHODS.SET_PLAYER_DATA,
       METHODS.CHAT,
+      METHODS.LOG,
     ].includes(method);
   }
 }

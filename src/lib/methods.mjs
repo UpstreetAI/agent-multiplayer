@@ -8,12 +8,13 @@ export const METHODS = {
   LEAVE: 5,
   // client -> server proxy
   CHAT: 6,
-  AUDIO: 7,
-  AUDIO_START: 8,
-  AUDIO_END: 9,
-  VIDEO: 10,
-  VIDEO_START: 11,
-  VIDEO_END: 12,
+  LOG: 7,
+  AUDIO: 8,
+  AUDIO_START: 9,
+  AUDIO_END: 10,
+  VIDEO: 11,
+  VIDEO_START: 12,
+  VIDEO_END: 13,
 };
 
 export const METHOD_NAMES = {};
