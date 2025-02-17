@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@cloudflare/kv-asset-handler": "^0.3.4",
-    "u8-encoder": "file:./packages/u8-encoder",
+    "u8-encoder": "^0.0.3",
     "yjs": "^13.6.18"
   },
   "devDependencies": {
