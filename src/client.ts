@@ -9,12 +9,16 @@ export type AgentMultiplayerApi = EventTarget & {
   send: (methodArgs: MethodArgs) => void;
 };
 
-export const connect = async (url: string, {
+export const connect = async ({
+  endpointUrl,
+  room,
   signal,
 }: {
+  endpointUrl: string,
+  room: string,
   signal?: AbortSignal,
-} = {}): Promise<AgentMultiplayerApi> => {
-  const ws = new WebSocket(url);
+}): Promise<AgentMultiplayerApi> => {
+  const ws = new WebSocket(`${endpointUrl}/api/rooms/${room}/websocket`);
 
   await new Promise((resolve, reject) => {
     const onopen = () => {
