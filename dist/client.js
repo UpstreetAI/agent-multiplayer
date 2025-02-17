@@ -1,17 +1,16 @@
 // src/lib/methods.mjs
 var METHODS = {
   // handshake protocol
-  INIT_PLAYER_ID: 1,
-  // server -> client
-  SET_PLAYER_DATA: 2,
+  SET_PLAYER_DATA: 1,
   // client -> server proxy
-  INIT_PLAYERS: 3,
+  INIT_PLAYERS: 2,
   // server -> client
   // server -> client
-  JOIN: 4,
-  LEAVE: 5,
+  JOIN: 3,
+  LEAVE: 4,
   // client -> server proxy
-  CHAT: 6,
+  CHAT: 5,
+  LOG: 6,
   AUDIO: 7,
   AUDIO_START: 8,
   AUDIO_END: 9,
@@ -96,5 +95,7 @@ var connect = async (url, {
   return result;
 };
 export {
+  METHODS,
+  METHOD_NAMES,
   connect
 };
