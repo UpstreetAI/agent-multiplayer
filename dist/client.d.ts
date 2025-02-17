@@ -23,7 +23,7 @@ for (const [key, value] of Object.entries(METHODS)) {
 
 type MethodArgs = {
     method: number;
-    args: object;
+    args: any;
 };
 
 type AgentMultiplayerApi = EventTarget & {
