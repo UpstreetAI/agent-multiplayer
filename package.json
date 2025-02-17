@@ -1,6 +1,6 @@
 {
   "name": "agent-multiplayer",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "",
   "main": "./src/client.ts",
   "type": "module",
