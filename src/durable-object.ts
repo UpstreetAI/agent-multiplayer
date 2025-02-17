@@ -181,6 +181,7 @@ export class Room {
         method: METHODS.JOIN,
         args: {
           playerId: session.playerId,
+          playerData: session.playerData,
         },
       }));
     };
