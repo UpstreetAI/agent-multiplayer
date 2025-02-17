@@ -1,20 +1,19 @@
 export const METHODS = {
   // handshake protocol
-  INIT_PLAYER_ID: 1, // server -> client
-  SET_PLAYER_DATA: 2, // client -> server proxy
-  INIT_PLAYERS: 3, // server -> client
+  SET_PLAYER_DATA: 1, // client -> server proxy
+  INIT_PLAYERS: 2, // server -> client
   // server -> client
-  JOIN: 4,
-  LEAVE: 5,
+  JOIN: 3,
+  LEAVE: 4,
   // client -> server proxy
-  CHAT: 6,
-  LOG: 7,
-  AUDIO: 8,
-  AUDIO_START: 9,
-  AUDIO_END: 10,
-  VIDEO: 11,
-  VIDEO_START: 12,
-  VIDEO_END: 13,
+  CHAT: 5,
+  LOG: 6,
+  AUDIO: 7,
+  AUDIO_START: 8,
+  AUDIO_END: 9,
+  VIDEO: 10,
+  VIDEO_START: 11,
+  VIDEO_END: 12,
 };
 
 export const METHOD_NAMES = {};

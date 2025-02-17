@@ -101,19 +101,10 @@ export class Room {
     webSocket.accept();
 
     // steps to initialize the session:
-    // 1. generate playerId and send it to the client
-    // 2. wait for client to set playerData
-    // 3. latch the new session and begin listening for messages
-    // 4. send network init message to the client
-    // 5. send join message to peers except us
-
-    const playerId = crypto.randomUUID();
-    webSocket.send(serializeMessage({
-      method: METHODS.INIT_PLAYER_ID,
-      args: {
-        playerId,
-      },
-    }));
+    // 1. wait for client to set playerData
+    // 2. latch the new session and begin listening for messages
+    // 3. send network init message to the client
+    // 4. send join message to peers except us
 
     let {
       args: playerData,
@@ -121,6 +112,7 @@ export class Room {
 
     // const _resumeWebsocket = _pauseWebSocket(webSocket);
 
+    const playerId = crypto.randomUUID();
     const session = {webSocket, playerId, playerData};
     this.sessions.push(session);
 
@@ -128,6 +120,7 @@ export class Room {
     webSocket.send(serializeMessage({
       method: METHODS.NETWORK_INIT,
       args: {
+        playerId,
         players: this.sessions.map((s) => ({
           playerId: s.playerId,
           playerData: s.playerData,

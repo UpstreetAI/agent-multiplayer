@@ -2,9 +2,10 @@ import { METHODS, METHOD_NAMES } from "./lib/methods.mjs";
 import { parseMessage, serializeMessage, type MethodArgs } from "./lib/util.ts";
 export {
   METHODS,
+  METHOD_NAMES,
 };
 
-type MultiplayerApi = EventTarget & {
+export type AgentMultiplayerApi = EventTarget & {
   send: (methodArgs: MethodArgs) => void;
 };
 
@@ -12,7 +13,7 @@ export const connect = async (url: string, {
   signal,
 }: {
   signal?: AbortSignal,
-} = {}) => {
+} = {}): Promise<AgentMultiplayerApi> => {
   const ws = new WebSocket(url);
 
   await new Promise((resolve, reject) => {
@@ -35,7 +36,7 @@ export const connect = async (url: string, {
     throw new Error('Connection aborted');
   }
 
-  const result = new EventTarget() as MultiplayerApi;
+  const result = new EventTarget() as AgentMultiplayerApi;
   result.send = ({
     method,
     args,
