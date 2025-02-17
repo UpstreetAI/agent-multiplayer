@@ -8,14 +8,17 @@ var METHODS = {
   // server -> client
   JOIN: 3,
   LEAVE: 4,
-  // client -> server proxy
-  CHAT: 5,
-  LOG: 6,
-  AUDIO: 7,
-  AUDIO_START: 8,
-  AUDIO_END: 9,
-  VIDEO: 10,
-  VIDEO_START: 11,
+  // client -> server proxy to all peers
+  LOG: 5,
+  CHAT: 6,
+  TYPING: 7,
+  SPEAKING: 8,
+  // client -> server proxy to all except self
+  AUDIO: 9,
+  AUDIO_START: 10,
+  AUDIO_END: 11,
+  VIDEO: 12,
+  VIDEO_START: 13,
   VIDEO_END: 12
 };
 var METHOD_NAMES = {};
@@ -49,10 +52,12 @@ function serializeMessage({
 }
 
 // src/client.ts
-var connect = async (url, {
+var connect = async ({
+  endpointUrl,
+  room,
   signal
-} = {}) => {
-  const ws = new WebSocket(url);
+}) => {
+  const ws = new WebSocket(`${endpointUrl}/api/rooms/${room}/websocket`);
   await new Promise((resolve, reject) => {
     const onopen = () => {
       resolve(null);

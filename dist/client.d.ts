@@ -5,14 +5,17 @@ const METHODS = {
   // server -> client
   JOIN: 3,
   LEAVE: 4,
-  // client -> server proxy
-  CHAT: 5,
-  LOG: 6,
-  AUDIO: 7,
-  AUDIO_START: 8,
-  AUDIO_END: 9,
-  VIDEO: 10,
-  VIDEO_START: 11,
+  // client -> server proxy to all peers
+  LOG: 5,
+  CHAT: 6,
+  TYPING: 7,
+  SPEAKING: 8,
+  // client -> server proxy to all except self
+  AUDIO: 9,
+  AUDIO_START: 10,
+  AUDIO_END: 11,
+  VIDEO: 12,
+  VIDEO_START: 13,
   VIDEO_END: 12,
 };
 
@@ -29,7 +32,9 @@ type MethodArgs = {
 type AgentMultiplayerApi = EventTarget & {
     send: (methodArgs: MethodArgs) => void;
 };
-declare const connect: (url: string, { signal, }?: {
+declare const connect: ({ endpointUrl, room, signal, }: {
+    endpointUrl: string;
+    room: string;
     signal?: AbortSignal;
 }) => Promise<AgentMultiplayerApi>;
 
