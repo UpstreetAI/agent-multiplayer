@@ -1,11 +1,12 @@
 import {NetworkedIrcClient} from "./lib/irc-client.mjs";
 import {handlesMethod as networkedAudioClientHandlesMethod} from "./lib/audio/networked-audio-client-utils.mjs";
 import {handlesMethod as networkedVideoClientHandlesMethod} from "./lib/video/networked-video-client-utils.mjs";
-import {parseUpdateObject, serializeMessage} from "./lib/util.mjs";
+import {parseMessage, serializeMessage, type MethodArgs} from "./lib/util";
+import {METHODS} from "./lib/methods.mjs";
 import {handleErrors} from "./lib/errors.mjs";
 
 // returns the resume function
-const _pauseWebSocket = (ws) => {
+/* const _pauseWebSocket = (ws) => {
   const queue: any[] = [];
   const onmessage = e => {
     queue.push(e.data);
@@ -19,13 +20,48 @@ const _pauseWebSocket = (ws) => {
 
     ws.removeEventListener('message', onmessage);
   };
+}; */
+
+const waitForMessageType = (webSocket: WebSocket, method: number): Promise<MethodArgs> => {
+  return new Promise((resolve, reject) => {
+    const onmessage = (e: MessageEvent) => {
+      if (e.data instanceof ArrayBuffer) {
+        const arrayBuffer = e.data as ArrayBuffer;
+        const uint8Array = new Uint8Array(arrayBuffer);
+        const o = parseMessage(uint8Array);
+        if (o.method === method) {
+          resolve(o);
+          webSocket.removeEventListener('message', onmessage);
+          webSocket.removeEventListener('close', onclose);
+          webSocket.removeEventListener('error', onerror);
+        }
+      }
+    };
+    webSocket.addEventListener('message', onmessage);
+
+    const onclose = () => {
+      reject(new Error('WebSocket closed'));
+    };
+    webSocket.addEventListener('close', onclose);
+
+    const onerror = (e: Event) => {
+      reject(e);
+    };
+    webSocket.addEventListener('error', onerror);
+  });
+};
+
+type Session = {
+  webSocket: WebSocket;
+  playerId: string;
+  playerData: object;
 };
 
 // Durable Object Class
 export class Room {
   storage: any;
   env: any;
-  sessions: any[];
+  sessions: Session[];
   lastTimestamp: number;
 
   constructor(controller, env) {
@@ -71,27 +107,33 @@ export class Room {
     // 4. send network init message to the client
     // 5. send join message to peers except us
 
-    const playerId = url.searchParams.get('playerId') ?? null;
+    const playerId = crypto.randomUUID();
+    webSocket.send(serializeMessage({
+      method: METHODS.INIT_PLAYER_ID,
+      args: {
+        playerId,
+      },
+    }));
+
+    let {
+      args: playerData,
+    } = await waitForMessageType(webSocket, METHODS.SET_PLAYER_DATA);
 
     // const _resumeWebsocket = _pauseWebSocket(webSocket);
 
-    const networkClient = {
-      getNetworkInitMessage: () => {
-        return new MessageEvent('networkinit', {
-          data: {
-            playerIds: this.sessions
-              .map((session) => session.playerId)
-              .filter((playerId) => playerId !== null),
-          },
-        });
-      },
-    };
-
-    let session = {webSocket, playerId};
+    const session = {webSocket, playerId, playerData};
     this.sessions.push(session);
 
     // send network init
-    webSocket.send(serializeMessage(networkClient.getNetworkInitMessage()));
+    webSocket.send(serializeMessage({
+      method: METHODS.NETWORK_INIT,
+      args: {
+        players: this.sessions.map((s) => ({
+          playerId: s.playerId,
+          playerData: s.playerData,
+        })),
+      },
+    }));
 
     // respond back to the client
     // const respondToSelf = message => {
@@ -99,25 +141,31 @@ export class Room {
     // };
 
     // send a message to everyone on the list except us
-    const proxyMessageToPeersExceptUs = m => {
+    const proxyMessageToPeersExceptUs = (uint8Array: Uint8Array) => {
       for (const s of this.sessions) {
         if (s !== session) {
-          s.webSocket.send(m);
+          s.webSocket.send(uint8Array);
         }
       }
     };
     // send a message to all peers
-    const proxyMessageToPeersIncludingUs = m => {
+    const proxyMessageToPeersIncludingUs = (uint8Array: Uint8Array) => {
       for (const s of this.sessions) {
-        s.webSocket.send(m);
+        s.webSocket.send(uint8Array);
       }
     };
 
-    const handleBinaryMessage = (arrayBuffer) => {
+    const handleBinaryMessage = (arrayBuffer: ArrayBuffer) => {
       const uint8Array = new Uint8Array(arrayBuffer);
-      const updateObject = parseUpdateObject(uint8Array);
+      const o = parseMessage(uint8Array);
 
-      const {method} = updateObject;
+      // handle playerData updates
+      if (o.method === METHODS.SET_PLAYER_DATA) {
+        session.playerData = o.args;
+      }
+
+      // handle proxying messages to peers
+      const {method} = o;
       if (NetworkedIrcClient.handlesMethod(method)) {
         proxyMessageToPeersIncludingUs(uint8Array);
       }
@@ -129,23 +177,28 @@ export class Room {
       }
     };
 
-    const _sendJoinMessage = (playerId) => {
-      if (playerId) {
-        const joinMessage = new MessageEvent('join', {
-          data: {
-            playerId,
-          },
-        });
-        const joinBuffer = serializeMessage(joinMessage);
-        proxyMessageToPeersExceptUs(joinBuffer);
-      }
+    const _sendJoinMessageToPeersExceptUs = () => {
+      proxyMessageToPeersExceptUs(serializeMessage({
+        method: METHODS.JOIN,
+        args: {
+          playerId: session.playerId,
+        },
+      }));
     };
-    _sendJoinMessage(playerId);
+    const _sendLeaveMessageToPeersExceptUs = () => {
+      proxyMessageToPeersExceptUs(serializeMessage({
+        method: METHODS.LEAVE,
+        args: {
+          playerId: session.playerId,
+        },
+      }));
+    };
+    _sendJoinMessageToPeersExceptUs();
 
-    webSocket.addEventListener("message", async msg => {
+    webSocket.addEventListener("message", async (e: MessageEvent) => {
       try {
-        if (msg.data instanceof ArrayBuffer) {
-          const arrayBuffer = msg.data;
+        if (e.data instanceof ArrayBuffer) {
+          const arrayBuffer = e.data;
           handleBinaryMessage(arrayBuffer);
         } else {
           throw new Error('got non-binary message');
@@ -156,9 +209,10 @@ export class Room {
       }
     });
 
-    let closeOrErrorHandler = evt => {
+    const closeOrErrorHandler = (e: MessageEvent) => {
       try {
         this.sessions = this.sessions.filter(s => s !== session);
+        _sendLeaveMessageToPeersExceptUs();
       } catch(err) {
         console.warn(err.stack);
         throw err;
@@ -175,21 +229,5 @@ export class Room {
     };
 
     // _resumeWebsocket();
-  }
-
-  // broadcast() broadcasts a message to all clients.
-  broadcast(message) {
-    // Apply JSON if we weren't given a string to start with.
-    if (typeof message !== 'string') {
-      message = JSON.stringify(message);
-    }
-
-    try {
-      for (const session of this.sessions) {
-        session.webSocket.send(message);
-      }
-    } catch (err) {
-      console.warn(err.stack);
-    }
   }
 }

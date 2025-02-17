@@ -1,28 +1,25 @@
 import {zbencode} from 'zjs';
-import {UPDATE_METHODS} from './update-types.mjs';
-import {parseUpdateObject, makeId} from './util.mjs';
+import {METHODS} from './methods.mjs';
+import {parseUpdateObject} from './util.mjs';
 
 export class NetworkedIrcClient extends EventTarget {
-  constructor(playerId = makeId()) {
-    super();
+  // constructor(playerId = makeId()) {
+  //   super();
 
-    this.playerId = playerId;
-    this.playerIds = [];
+  //   // this.playerId = playerId;
+  //   // this.playerIds = [];
 
-    this.ws = null;
-  }
+  //   this.ws = null;
+  // }
 
   static handlesMethod(method) {
     return [
-      UPDATE_METHODS.NETWORK_INIT,
-      UPDATE_METHODS.JOIN,
-      UPDATE_METHODS.LEAVE,
-      UPDATE_METHODS.REGISTER,
-      UPDATE_METHODS.CHAT,
+      METHODS.SET_PLAYER_DATA,
+      METHODS.CHAT,
     ].includes(method);
   }
 
-  async connect(ws) {
+  /* async connect(ws) {
     this.ws = ws;
 
     const _waitForOpen = () => new Promise((resolve, reject) => {
@@ -165,5 +162,5 @@ export class NetworkedIrcClient extends EventTarget {
       ],
     });
     this.ws.send(buffer);
-  }
+  } */
 }

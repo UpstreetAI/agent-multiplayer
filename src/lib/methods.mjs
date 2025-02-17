@@ -1,9 +1,12 @@
 export const METHODS = {
-  INIT_PLAYER_ID: 1,
-  SET_PLAYER_DATA: 2,
-  INIT_PLAYERS: 3,
+  // handshake protocol
+  INIT_PLAYER_ID: 1, // server -> client
+  SET_PLAYER_DATA: 2, // client -> server proxy
+  INIT_PLAYERS: 3, // server -> client
+  // server -> client
   JOIN: 4,
   LEAVE: 5,
+  // client -> server proxy
   CHAT: 6,
   AUDIO: 7,
   AUDIO_START: 8,
