@@ -1,6 +1,6 @@
-import {zbencode} from 'zjs';
+// import {zbencode} from 'zjs';
 import {METHODS} from './methods.mjs';
-import {parseUpdateObject} from './util.mjs';
+// import {parseUpdateObject} from './util.mjs';
 
 export class NetworkedIrcClient extends EventTarget {
   // constructor(playerId = makeId()) {
@@ -49,7 +49,7 @@ export class NetworkedIrcClient extends EventTarget {
             const uint8Array = new Uint8Array(updateBuffer);
             const updateObject = parseUpdateObject(uint8Array);
 
-            const {method/*, args */} = updateObject;
+            const {method} = updateObject;
             if (method === UPDATE_METHODS.NETWORK_INIT) {
               this.handleUpdateObject(updateObject);
 
@@ -76,7 +76,7 @@ export class NetworkedIrcClient extends EventTarget {
         const uint8Array = new Uint8Array(updateBuffer);
         const updateObject = parseUpdateObject(uint8Array);
 
-        const {method/*, args */} = updateObject;
+        const {method} = updateObject;
         if (NetworkedIrcClient.handlesMethod(method)) {
           this.handleUpdateObject(updateObject);
         }
