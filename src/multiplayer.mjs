@@ -1,8 +1,4 @@
-import HTML from "./chat.html";
-import { getAssetFromKV, mapRequestToAsset } from '@cloudflare/kv-asset-handler'
-import manifestJSON from '__STATIC_CONTENT_MANIFEST'
-const assetManifest = JSON.parse(manifestJSON);
-import {DataClient, NetworkedDataClient/*, DCMap, DCArray*/} from "../public/data-client.mjs";
+import {DataClient, NetworkedDataClient} from "../public/data-client.mjs";
 import {NetworkedIrcClient} from "../public/irc-client.mjs";
 import {NetworkedCrdtClient} from "../public/crdt-client.mjs";
 import {NetworkedLockClient} from "../public/lock-client.mjs";
@@ -49,62 +45,13 @@ export default {
       let url = new URL(request.url);
       let path = url.pathname.slice(1).split('/');
 
-      if (!path[0]) {
-        // Serve our HTML at the root path.
-        return new Response(HTML, {headers: {"Content-Type": "text/html;charset=UTF-8"}});
-      }
-
       switch (path[0]) {
-        case "api":
-          // This is a request for `/api/...`, call the API handler.
+        case 'api':
           return handleApiRequest(path.slice(1), request, env);
-        case 'public':
-          return handlePublicRequest(path.slice(1), request, env, ctx);
         default:
           return new Response("Not found", {status: 404});
       }
     });
-  }
-}
-
-async function handlePublicRequest(path, request, env, ctx) {
-  try {
-    const event = {
-      request,
-      waitUntil(promise) {
-        return ctx.waitUntil(promise)
-      },
-    }
-    const options = {};
-    function handlePrefix(prefix) {
-      return request => {
-        // compute the default (e.g. / -> index.html)
-        let defaultAssetKey = mapRequestToAsset(request)
-        let url = new URL(defaultAssetKey.url)
-
-        // strip the prefix from the path for lookup
-        url.pathname = url.pathname.replace(prefix, '/')
-
-        // inherit all other props from the default request
-        return new Request(url.toString(), defaultAssetKey)
-      }
-    }
-    options.mapRequestToAsset = handlePrefix(/^\/public/);
-    options.ASSET_NAMESPACE = env.__STATIC_CONTENT;
-    options.ASSET_MANIFEST = assetManifest;
-    const page = await getAssetFromKV(event, options)
-
-    // allow headers to be altered
-    const response = new Response(page.body, page);
-
-    // console.log('got response', response);
-
-    return response;
-  } catch(err) {
-    console.log('error', err);
-    return new Response(err.stack, {
-      status: 500,
-    })
   }
 }
 
@@ -273,7 +220,7 @@ export class ChatRoom {
       const methodName = match ? match[2] : '';
 
       switch (methodName) {
-        case "websocket": {
+        case 'websocket': {
           // The request is to `/api/room/<name>/websocket`. A client is trying to establish a new
           // WebSocket session.
           if (request.headers.get("Upgrade") != "websocket") {
@@ -295,14 +242,6 @@ export class ChatRoom {
 
           // Now we return the other end of the pair to the client.
           return new Response(null, { status: 101, webSocket: pair[0] });
-        }
-
-        case 'get': {
-          break;
-        }
-
-        case 'set': {
-          break;
         }
 
         default:
