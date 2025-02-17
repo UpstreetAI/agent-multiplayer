@@ -130,11 +130,6 @@ export class Room {
       },
     }));
 
-    // respond back to the client
-    // const respondToSelf = message => {
-    //   session.webSocket.send(message);
-    // };
-
     // send a message to everyone on the list except us
     const proxyMessageToPeersExceptUs = (uint8Array: Uint8Array) => {
       for (const s of this.sessions) {
