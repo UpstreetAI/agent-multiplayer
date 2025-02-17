@@ -23,7 +23,7 @@ const makeId = () => makeid(10); */
 
 export type MethodArgs = {
   method: number;
-  args: object;
+  args: any;
 };
 
 export function parseMessage(uint8Array: Uint8Array) {

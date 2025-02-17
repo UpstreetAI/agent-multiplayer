@@ -106,8 +106,10 @@ export class Room {
     // 3. send network init message to the client
     // 4. send join message to peers except us
 
-    let {
-      args: playerData,
+    const {
+      args: {
+        playerData,
+      },
     } = await waitForMessageType(webSocket, METHODS.SET_PLAYER_DATA);
 
     // const _resumeWebsocket = _pauseWebSocket(webSocket);
@@ -154,7 +156,7 @@ export class Room {
 
       // handle playerData updates
       if (o.method === METHODS.SET_PLAYER_DATA) {
-        session.playerData = o.args;
+        session.playerData = o.args.playerData;
       }
 
       // handle proxying messages to peers
