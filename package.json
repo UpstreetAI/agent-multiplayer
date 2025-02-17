@@ -2,7 +2,8 @@
   "name": "agent-multiplayer",
   "version": "0.0.3",
   "description": "",
-  "main": "./src/client.ts",
+  "main": "./dist/client.js",
+  "types": "./dist/client.d.ts",
   "type": "module",
   "repository": {
     "type": "git",
@@ -15,15 +16,18 @@
   },
   "homepage": "https://github.com/usdk/agent-multiplayer",
   "scripts": {
+    "build": "tsup ./src/client.ts --dts --format esm --out-dir ./dist",
     "dev": "wrangler dev --port 2222",
     "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@cloudflare/kv-asset-handler": "^0.3.4",
-    "u8-encoder": "^0.0.3",
+    "u8-encoder": "^0.0.4",
     "yjs": "^13.6.18"
   },
   "devDependencies": {
+    "tsup": "^8.3.6",
+    "typescript": "^5.7.3",
     "wrangler": "^3.109.1"
   }
 }
